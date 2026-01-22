@@ -1,25 +1,66 @@
 {
   "name": "claude-pro-extension",
-  "displayName": "Claude Pro Autonomous Agent",
-  "description": "Use your Claude Pro subscription for autonomous coding tasks",
-  "version": "0.1.0",
+  "displayName": "Claude Pro",
+  "description": "Chat with Claude using your Pro subscription",
+  "version": "0.4.0",
+  "publisher": "KeyboardMonkey",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": ["Other"],
-  "activationEvents": ["onCommand:claudepro.runTask", "onCommand:claudepro.workOnIssue"],
-  "main": "./out/src/extension.js",
+  "activationEvents": ["onView:claudeChat"],
+  "main": "./out/extension.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/scasino983/claude-pro-extension.git"
+  },
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claude-sidebar",
+          "title": "Claude Pro",
+          "icon": "resources/claude-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "claude-sidebar": [
+        {
+          "type": "webview",
+          "id": "claudeChat",
+          "name": "Chat"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "claudepro.runTask",
-        "title": "Claude: Run Task"
+        "command": "claudepro.newChat",
+        "title": "New Chat",
+        "icon": "$(add)"
       },
       {
-        "command": "claudepro.workOnIssue",
-        "title": "Claude: Work on GitHub Issue"
+        "command": "claudepro.clearHistory",
+        "title": "Clear Chat History"
+      },
+      {
+        "command": "claudepro.signIn",
+        "title": "Claude: Sign In"
+      },
+      {
+        "command": "claudepro.signOut",
+        "title": "Claude: Sign Out"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "claudepro.newChat",
+          "when": "view == claudeChat",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

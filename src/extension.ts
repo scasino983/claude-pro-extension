@@ -1,80 +1,71 @@
 import * as vscode from 'vscode';
-import { ClaudeProClient } from './claudeProClient';
-import { ClaudeTaskManager } from './claudeTaskManager';
-import { execAsync } from './utils';
+import { ClaudeProClient } from './claudeClient';
+import { ChatHistoryManager } from './chatHistory';
+import { ChatViewProvider } from './chatView';
 
 export function activate(context: vscode.ExtensionContext) {
-  const outputChannel = vscode.window.createOutputChannel('Claude Pro');
-  const client = new ClaudeProClient();
-  const taskManager = new ClaudeTaskManager(client, outputChannel);
+  console.log('Claude Pro extension activating...');
 
-  // Register command: Claude: Run Task
-  const runTaskCommand = vscode.commands.registerCommand('claudepro.runTask', async () => {
-    // Load credentials first
-    const loaded = await client.loadCredentials();
-    if (!loaded) {
-      vscode.window.showErrorMessage(
-        'Claude credentials not found. Please run "claude /login" in your terminal first.'
+  const client = new ClaudeProClient(context);
+  const historyManager = new ChatHistoryManager(context);
+  const chatProvider = new ChatViewProvider(context.extensionUri, client, historyManager);
+
+  // Register webview provider
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('claudeChat', chatProvider)
+  );
+
+  // New chat command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('claudepro.newChat', () => {
+      historyManager.startNewConversation();
+      chatProvider.refresh();
+    })
+  );
+
+  // Clear history command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('claudepro.clearHistory', async () => {
+      const answer = await vscode.window.showWarningMessage(
+        'Clear all chat history?',
+        'Yes',
+        'No'
       );
-      return;
-    }
+      if (answer === 'Yes') {
+        historyManager.clearAllHistory();
+        chatProvider.refresh();
+      }
+    })
+  );
 
-    // Get task from user
-    const task = await vscode.window.showInputBox({
-      prompt: 'What task should Claude complete?',
-      placeHolder: 'e.g., Add error handling to the login function'
-    });
+  // Sign in command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('claudepro.signIn', async () => {
+      const success = await client.ensureAuthenticated();
+      if (success) {
+        vscode.window.showInformationMessage('Successfully signed in to Claude!');
+        chatProvider.refresh();
+      }
+    })
+  );
 
-    if (!task) return;
-
-    try {
-      await taskManager.executeTask(task);
-      vscode.window.showInformationMessage('✅ Task completed!');
-    } catch (error: any) {
-      vscode.window.showErrorMessage(`❌ Task failed: ${error.message}`);
-    }
-  });
-
-  // Register command: Claude: Work on GitHub Issue
-  const workOnIssueCommand = vscode.commands.registerCommand('claudepro.workOnIssue', async () => {
-    const loaded = await client.loadCredentials();
-    if (!loaded) {
-      vscode.window.showErrorMessage(
-        'Claude credentials not found. Please run "claude /login" in your terminal first.'
+  // Sign out command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('claudepro.signOut', async () => {
+      const answer = await vscode.window.showWarningMessage(
+        'Sign out of Claude?',
+        'Yes',
+        'No'
       );
-      return;
-    }
+      if (answer === 'Yes') {
+        await context.secrets.delete('claude-oauth-credentials');
+        vscode.window.showInformationMessage('Signed out successfully');
+        chatProvider.refresh();
+      }
+    })
+  );
 
-    const issueNumber = await vscode.window.showInputBox({
-      prompt: 'Enter GitHub issue number',
-      placeHolder: 'e.g., 123'
-    });
-
-    if (!issueNumber) return;
-
-    // Get issue details using gh CLI
-    const workspace = vscode.workspace.workspaceFolders?.[0];
-    if (!workspace) {
-      vscode.window.showErrorMessage('No workspace folder open');
-      return;
-    }
-
-    try {
-      const { stdout } = await execAsync(`gh issue view ${issueNumber} --json title,body`, {
-        cwd: workspace.uri.fsPath
-      });
-      
-      const issue = JSON.parse(stdout);
-      const task = `Work on GitHub issue #${issueNumber}: ${issue.title}\n\nDescription:\n${issue.body}`;
-      
-      await taskManager.executeTask(task);
-      vscode.window.showInformationMessage('✅ Issue work completed!');
-    } catch (error: any) {
-      vscode.window.showErrorMessage(`❌ Failed: ${error.message}`);
-    }
-  });
-
-  context.subscriptions.push(runTaskCommand, workOnIssueCommand, outputChannel);
+  console.log('Claude Pro extension activated!');
 }
 
 export function deactivate() {}
